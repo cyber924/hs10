@@ -11,7 +11,7 @@ Cloudflare Workers + D1 기반의 글쓰기 스튜디오 및 공개 웹진입니
 ## Cloudflare 최초 설정
 
 1. Cloudflare에서 D1 데이터베이스를 `hs10-db` 이름으로 생성합니다.
-2. 생성된 database ID를 `wrangler.jsonc`의 `REPLACE_WITH_D1_DATABASE_ID`에 입력합니다.
+2. D1 Database ID는 `wrangler.jsonc`에 이미 연결되어 있습니다.
 3. 이미지 파일 저장소는 사용하지 않습니다. 게시글에 HTTPS 이미지 주소를 입력합니다.
 4. 설치 및 DB 마이그레이션:
 
