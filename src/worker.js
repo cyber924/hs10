@@ -16,7 +16,24 @@ async function userFor(request,env){
   const row=await env.DB.prepare("SELECT u.id,u.email,u.display_name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=? AND s.expires_at>?").bind(token,now()).first();
   return row||null;
 }
-const safePost = p => ({id:p.id,title:p.title,slug:p.slug,excerpt:p.excerpt,body:p.body,category:p.category,coverUrl:p.cover_url,status:p.status,createdAt:p.created_at,updatedAt:p.updated_at,publishedAt:p.published_at});
+
+async function settingsKey(env){
+  if(!env.APP_ENCRYPTION_KEY)throw new Error("Cloudflare에 APP_ENCRYPTION_KEY 보안 변수를 먼저 등록해야 합니다.");
+  const digest=await crypto.subtle.digest("SHA-256",enc.encode(env.APP_ENCRYPTION_KEY));
+  return crypto.subtle.importKey("raw",digest,{name:"AES-GCM"},false,["encrypt","decrypt"]);
+}
+async function encryptSecret(value,env){
+  const iv=crypto.getRandomValues(new Uint8Array(12)),key=await settingsKey(env);
+  const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,enc.encode(value));
+  return JSON.stringify({iv:b64(iv),data:b64(encrypted)});
+}
+async function decryptSecret(value,env){
+  const item=JSON.parse(value),key=await settingsKey(env);
+  const raw=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+  const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:raw(item.iv)},key,raw(item.data));
+  return new TextDecoder().decode(plain);
+}
+\nconst safePost = p => ({id:p.id,title:p.title,slug:p.slug,excerpt:p.excerpt,body:p.body,category:p.category,coverUrl:p.cover_url,status:p.status,createdAt:p.created_at,updatedAt:p.updated_at,publishedAt:p.published_at});
 async function handleApi(request,env){
   const url=new URL(request.url),path=url.pathname,method=request.method;
   if(method==="GET"&&path==="/api/posts"){
@@ -49,11 +66,56 @@ async function handleApi(request,env){
     return json({ok:true},200,{"set-cookie":cookieHeader("",0)});
   }
   if(path==="/api/auth/me"&&method==="GET")return json({user:await userFor(request,env)});
+
+  if(path==="/api/ai/settings"&&method==="GET"){
+    const user=await userFor(request,env);if(!user)return json({error:"로그인이 필요합니다."},401);
+    if(user.role!=="admin")return json({error:"관리자 권한이 필요합니다."},403);
+    const row=await env.DB.prepare("SELECT value FROM app_settings WHERE key='gemini_api_key'").first();
+    return json({configured:!!row?.value});
+  }
   if(["POST","PUT","DELETE","PATCH"].includes(method)){
     const origin=request.headers.get("Origin");
     if(!origin||new URL(origin).origin!==url.origin)return json({error:"요청 출처를 확인할 수 없습니다."},403);
   }
   const user=await userFor(request,env); if(!user)return json({error:"로그인이 필요합니다."},401);
+  if(path==="/api/ai/settings"&&method==="POST"){
+    const b=await request.json(),key=String(b.apiKey||"").trim();
+    if(key.length<20||key.length>300)return json({error:"Gemini API 키를 확인해 주세요."},400);
+    try{
+      const encrypted=await encryptSecret(key,env);
+      await env.DB.prepare("INSERT INTO app_settings(key,value,updated_at) VALUES('gemini_api_key',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at").bind(encrypted,now()).run();
+      return json({ok:true,configured:true});
+    }catch(e){console.error("AI key save error",e);return json({error:e.message.includes("APP_ENCRYPTION_KEY")?e.message:"AI 키 저장에 실패했습니다."},500)}
+  }
+  if(path==="/api/ai/test"&&method==="POST"){
+    const row=await env.DB.prepare("SELECT value FROM app_settings WHERE key='gemini_api_key'").first();
+    if(!row)return json({error:"먼저 Gemini API 키를 저장해 주세요."},400);
+    try{
+      const apiKey=await decryptSecret(row.value,env);
+      const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:"Reply with exactly: HS10 연결 성공"}]}]})});
+      const data=await response.json();
+      if(!response.ok)return json({error:data.error?.message||"Gemini API 연결에 실패했습니다."},502);
+      return json({ok:true,message:data.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("")||"응답을 받았습니다."});
+    }catch(e){console.error("Gemini test error",e);return json({error:"API 키 복호화 또는 연결에 실패했습니다. 암호화 키 설정을 확인해 주세요."},500)}
+  }
+  if(path==="/api/ai/generate"&&method==="POST"){
+    const b=await request.json(),prompt=String(b.prompt||"").trim(),title=String(b.title||"").trim(),existing=String(b.body||"").slice(0,12000);
+    if(!prompt)return json({error:"AI에게 요청할 내용을 입력해 주세요."},400);
+    if(prompt.length>5000)return json({error:"요청 내용은 5,000자 이내로 입력해 주세요."},400);
+    const row=await env.DB.prepare("SELECT value FROM app_settings WHERE key='gemini_api_key'").first();
+    if(!row)return json({error:"관리자 메뉴에서 Gemini API 키를 먼저 설정해 주세요."},400);
+    try{
+      const apiKey=await decryptSecret(row.value,env);
+      const instruction="당신은 한국어 전문 콘텐츠 에디터입니다. 자연스럽고 정확한 한국어로 작성하고, 과장이나 허위 사실을 만들지 마세요. 사용자가 요청한 결과물만 출력하세요.\n\n제목: "+title+"\n기존 본문:\n"+existing+"\n\n요청: "+prompt;
+      const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:instruction}]}]})});
+      const data=await response.json();
+      if(!response.ok)return json({error:data.error?.message||"Gemini 글 생성에 실패했습니다."},502);
+      const text=data.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("").trim();
+      if(!text)return json({error:"Gemini에서 생성된 본문이 없습니다."},502);
+      return json({text});
+    }catch(e){console.error("Gemini generate error",e);return json({error:"AI 글 생성 중 오류가 발생했습니다. API 키와 암호화 설정을 확인해 주세요."},500)}
+  }
+
   if(path==="/api/manage/posts"&&method==="GET"){
     const rows=await env.DB.prepare("SELECT * FROM posts WHERE user_id=? ORDER BY updated_at DESC").bind(user.id).all();
     return json({posts:rows.results.map(safePost)});
