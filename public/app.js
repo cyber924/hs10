@@ -40,28 +40,27 @@ function editorView(post=null){
  $("#postForm").onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));const btn=e.target.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent="저장 중…";try{if(post)await api("/api/manage/posts/"+post.id,{method:"PUT",body:JSON.stringify(b)});else await api("/api/manage/posts",{method:"POST",body:JSON.stringify(b)});await loadPosts();manageView()}catch(err){$("#postMsg").textContent=err.message;btn.disabled=false;btn.textContent="저장하기"}};
 }
 $("#loginOpen").onclick=()=>currentUser?manageView():loginView();$("#startWriting").onclick=()=>currentUser?editorView():loginView();$("#studioOpen").onclick=()=>currentUser?manageView():loginView();$("#archiveLink").onclick=()=>currentUser?manageView():loginView();
+const originalMainMarkup=document.querySelector("main").innerHTML;
 function renderArticleBody(source){
- let out=escapeHtml(source||"");
- out=out.replace(/^### (.+)$/gm,"<h3>$1</h3>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^# (.+)$/gm,"<h1>$1</h1>");
- out=out.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/^---$/gm,"<hr>");
- return out.split(/\n{2,}/).map(block=>{const t=block.trim();if(!t)return "";if(/^<(h[1-3]|hr)/.test(t))return t;return "<p>"+t.replace(/\n/g,"<br>")+"</p>"}).join("");
+ const lines=String(source||"").replace(/\r/g,"").split("\n");let html="",paragraph=[];
+ const flush=()=>{if(paragraph.length){html+="<p>"+paragraph.map(escapeHtml).join("<br>")+"</p>";paragraph=[]}};
+ for(const line of lines){const t=line.trim();if(!t){flush();continue}if(/^---+$/.test(t)){flush();html+="<hr>";continue}const heading=t.match(/^(#{1,3})\s+(.+)$/);if(heading){flush();const n=heading[1].length;html+="<h"+n+">"+escapeHtml(heading[2])+"</h"+n+">";continue}paragraph.push(t.replace(/\*\*(.+?)\*\*/g,"$1"))}flush();return html;
 }
 async function showArticle(){
- const m=location.hash.match(/^#post\/(.+)$/);if(!m)return;
+ const match=location.hash.match(/^#post\/(.+)$/),main=document.querySelector("main");
+ if(!match){document.body.classList.remove("article-page");if(document.body.dataset.article==="1"){main.innerHTML=originalMainMarkup;delete document.body.dataset.article;await loadPosts();document.title="허브스튜디오10 — 당신의 생각이 이야기가 되는 곳"}return}
  try{
-  const d=await api("/api/posts/"+m[1]),p=d.post;
+  const slug=decodeURIComponent(match[1]),data=await api("/api/posts/"+encodeURIComponent(slug)),p=data.post;
   const date=new Date(p.publishedAt||p.createdAt).toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric"});
-  openModal(\`<article class="webzine-article">
-   <div class="article-topline"><a href="#webzine" id="articleBack">HUB STUDIO 10 <span>/</span> WEBZINE</a><span>STORIES THAT STAY</span></div>
-   <header class="article-header"><p class="article-category">\${escapeHtml(p.category)}</p><h1>\${escapeHtml(p.title)}</h1><p class="article-deck">\${escapeHtml(p.excerpt||"")}</p><div class="article-byline"><span>HUB STUDIO 10 EDITION</span><time>\${date}</time></div></header>
-   \${p.coverUrl?\`<figure class="article-cover"><img src="\${escapeHtml(p.coverUrl)}" alt="\${escapeHtml(p.title)}"><figcaption>\${escapeHtml(p.title)}</figcaption></figure>\`:""}
-   <div class="article-layout"><aside class="article-aside"><span>READING</span><b>HUB<br>STUDIO<br>10</b><span>\${date}</span></aside><div class="article-body">\${renderArticleBody(p.body)}</div></div>
-   <footer class="article-footer"><span>END OF STORY</span><a href="#webzine">다른 이야기 읽기 ↗</a></footer>
-  </article>\`,true);
-  $("#modal .modal").classList.add("webzine-detail");
-  $("#articleBack").onclick=()=>{closeModal();location.hash="webzine"};
- }catch(e){openModal("<h2>글을 찾을 수 없습니다.</h2>")}
+  document.body.classList.add("article-page");document.body.dataset.article="1";
+  let html='<nav class="article-breadcrumb"><a href="#webzine">HUB STUDIO 10</a><span>/</span><a href="#webzine">공개웹진</a><span>/</span><span>'+escapeHtml(p.category)+'</span></nav>';
+  html+='<article class="webzine-article"><header class="article-header"><p class="article-category">'+escapeHtml(p.category)+'</p><h1>'+escapeHtml(p.title)+'</h1>';
+  if(p.excerpt)html+='<p class="article-deck">'+escapeHtml(p.excerpt)+'</p>';
+  html+='<div class="article-byline"><span>HUB STUDIO 10 · EDITION</span><time>'+date+'</time></div></header>';
+  if(p.coverUrl)html+='<figure class="article-cover"><img src="'+escapeHtml(p.coverUrl)+'" alt="'+escapeHtml(p.title)+'" loading="eager"><figcaption>'+escapeHtml(p.title)+'</figcaption></figure>';
+  html+='<div class="article-layout"><aside class="article-aside"><span>IN THIS STORY</span><b>HUB<br>STUDIO<br>10</b><span>'+date+'</span></aside><div class="article-body">'+renderArticleBody(p.body)+'</div></div><footer class="article-footer"><span>END OF STORY</span><a href="#webzine">다른 이야기 읽기 ↗</a></footer></article>';
+  main.innerHTML=html;window.scrollTo({top:0,behavior:"instant"});document.title=p.title+" — 허브스튜디오10";
+ }catch(error){main.innerHTML='<section class="article-error"><h1>글을 찾을 수 없습니다.</h1><p>삭제되었거나 비공개로 전환된 글일 수 있습니다.</p><a class="btn light" href="#webzine">공개웹진으로 돌아가기</a></section>'}
 }
-window.addEventListener("hashchange",showArticle);
-if(location.hash.startsWith("#post/"))showArticle();
+window.addEventListener("hashchange",showArticle);if(location.hash.startsWith("#post/"))showArticle();
 (async()=>{try{await refreshUser()}catch{}await loadPosts()})();
