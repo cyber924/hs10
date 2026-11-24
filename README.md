@@ -25,22 +25,10 @@ CREATE TABLE IF NOT EXISTS app_settings (
 
 5. Cloudflare Workers > Settings > Variables and Secrets에서 `APP_ENCRYPTION_KEY`라는 Secret을 추가합니다. 값은 비밀번호 관리자의 임의 생성 기능으로 32자 이상 생성하고 안전하게 보관합니다. 이 값이 바뀌면 저장된 Gemini 키를 복호화할 수 없으므로 변경하지 마세요.
 
-6. 설치 및 DB 마이그레이션:
+6. GitHub에 커밋을 푸시하면 Cloudflare Workers Builds가 연결된 경우 자동 배포됩니다. 자동 배포를 사용하지 않는 경우 Wrangler로 배포할 수 있습니다.
 
 ```bash
 npm install
-npx wrangler d1 migrations apply hs10-db --remote
-```
-
-7. 로컬 테스트:
-
-```bash
-npm run dev
-```
-
-8. 배포:
-
-```bash
 npm run deploy
 ```
 
@@ -61,7 +49,7 @@ npm run deploy
 - 동일 출처 변경 요청 검증 및 최초 관리자 생성 경쟁 조건 방어
 
 ## 중요
-- 운영 배포 전 D1 ID를 반드시 실제 계정 값으로 설정하세요.
+- D1의 `users`, `sessions`, `posts` 테이블은 최초 SQL Console에서 생성하고, `app_settings`도 위 SQL로 추가해야 합니다.
 - Cloudflare Workers의 Secure 쿠키는 HTTPS에서 동작합니다.
 - 이 저장소에는 사용자 데이터, 비밀키, 운영 계정이 포함되지 않습니다.
-- Gemini 기능 사용 전 `app_settings` 테이블과 `APP_ENCRYPTION_KEY` Secret 설정이 필요합니다. Google AI Studio에서 발급한 Gemini API 키는 로그인한 관리자만 등록할 수 있습니다. 현재 구현은 단일 관리자/작성자 중심의 첫 버전입니다. 이메일 인증, 비밀번호 재설정, 로그인 시도 제한, 역할별 다중 사용자 관리, 리치 텍스트 에디터, OG 이미지 렌더링 등은 후속 개발 범위입니다. 배포 전 실제 D1 database ID를 반드시 입력하고 D1 migration을 적용해야 합니다.
+- Gemini 기능 사용 전 `app_settings` 테이블과 `APP_ENCRYPTION_KEY` Secret 설정이 필요합니다. Google AI Studio에서 발급한 Gemini API 키는 로그인한 관리자만 등록할 수 있습니다. 현재 구현은 단일 관리자/작성자 중심의 첫 버전입니다. 이메일 인증, 비밀번호 재설정, 로그인 시도 제한, 역할별 다중 사용자 관리, 리치 텍스트 에디터, OG 이미지 렌더링 등은 후속 개발 범위입니다. D1 테이블이 이미 SQL Console에서 생성된 경우 0001 migration을 다시 실행하지 마세요.
