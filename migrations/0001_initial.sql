@@ -26,7 +26,6 @@ CREATE TABLE IF NOT EXISTS posts (
   excerpt TEXT NOT NULL DEFAULT '',
   body TEXT NOT NULL DEFAULT '',
   category TEXT NOT NULL DEFAULT '에세이',
-  cover_key TEXT,
   cover_url TEXT,
   status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','published')),
   created_at TEXT NOT NULL,
