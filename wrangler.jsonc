@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "hs10-db",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "2c741354-6a1a-4887-87f0-32cbc9164ab6",
       "migrations_dir": "migrations"
     }
   ]
