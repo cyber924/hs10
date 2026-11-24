@@ -27,12 +27,11 @@ function editorView(post=null){
   <div class="field"><label>한 줄 소개</label><input name="excerpt" maxlength="500" placeholder="독자에게 소개할 짧은 문장" value="${escapeHtml(post?.excerpt||"")}"></div>
   <div class="field"><label>본문</label><textarea name="body" required placeholder="당신의 이야기를 시작하세요…">${escapeHtml(post?.body||"")}</textarea></div>
  </div>
- </div>
  <aside class="editor-side">
   <div class="field"><label>카테고리</label><input name="category" value="${escapeHtml(post?.category||"에세이")}"></div>
   <div class="field"><label>대표 이미지 URL (선택)</label><input name="coverUrl" type="url" placeholder="https://" value="${escapeHtml(post?.coverUrl?.startsWith("http")?post.coverUrl:"")}"><small>이미지 호스팅 주소를 입력하세요. R2는 필요 없습니다.</small></div>
   <div class="field"><label>발행 상태</label><select name="status"><option value="draft" ${post?.status!=="published"?"selected":""}>초안 저장</option><option value="published" ${post?.status==="published"?"selected":""}>공개 발행</option></select></div>
-  <div class="ai-panel"><p class="eyebrow">GEMINI AI ASSISTANT</p><h3>AI 글쓰기 도우미</h3><p>주제나 작성 지시를 입력하면 본문 초안을 생성합니다.</p><textarea id="aiPrompt" placeholder="예: 2026년 데이터센터 전력시장 전망을 전문 보고서 형식으로 1,500자 작성해줘"></textarea><div class="field"><label>AI 모델</label><select id="aiModel"><option value="gemini-3.8-flash">Gemini 3.8 Flash</option><option value="gemini-2.5-flash">Gemini 2.5 Flash</option></select></div><button type="button" class="btn ai-button" id="generateAI">AI로 본문 생성</button><div class="message" id="aiMsg"></div></div>
+  <div class="ai-panel"><p class="eyebrow">GEMINI AI ASSISTANT</p><h3>AI 글쓰기 도우미</h3><p>주제나 작성 지시를 입력하면 본문 초안을 생성합니다.</p><textarea id="aiPrompt" placeholder="예: 2026년 데이터센터 전력시장 전망을 전문 보고서 형식으로 1,500자 작성해줘"></textarea><div class="field"><label>AI 모델</label><select id="aiModel"><option value="gemini-3.8-flash">Gemini 3.8 Flash (기본)</option><option value="gemini-3.6-flash">Gemini 3.6 Flash</option></select></div><button type="button" class="btn ai-button" id="generateAI">AI로 본문 생성</button><div class="message" id="aiMsg"></div></div>
  </aside>
  </div>
  <div class="editor-footer"><div class="message" id="postMsg"></div><button class="btn lime" type="submit">저장하기</button></div>
