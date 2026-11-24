@@ -61,7 +61,7 @@ async function handleApi(request,env){
   if(path==="/api/manage/posts"&&method==="POST"){
     const b=await request.json(),title=String(b.title||"").trim(),body=String(b.body||"").trim();
     if(!title||!body||title.length>180||body.length>200000||String(b.excerpt||"").length>500)return json({error:"제목, 본문 또는 소개의 길이를 확인하세요."},400);
-    if(b.coverUrl){try{const u=new URL(b.coverUrl);if(!["https:","http:"].includes(u.protocol)||u.username||u.password||b.coverUrl.length>2048)throw Error()}catch{return json({error:"대표 이미지 URL이 올바르지 않습니다."},400)}}
+    if(b.coverUrl){try{const u=new URL(b.coverUrl);if(u.protocol!=="https:"||u.username||u.password||b.coverUrl.length>2048)throw Error()}catch{return json({error:"대표 이미지 URL은 https:// 주소만 사용할 수 있습니다."},400)}}
     const pid=id(),time=now(),slug=slugify(b.slug||title)+"-"+pid.slice(0,6);
     const status=b.status==="published"?"published":"draft";
     await env.DB.prepare("INSERT INTO posts(id,user_id,title,slug,excerpt,body,category,cover_url,status,created_at,updated_at,published_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(pid,user.id,title,slug,String(b.excerpt||""),body,String(b.category||"에세이"),String(b.coverUrl||"")||null,status,time,time,status==="published"?time:null).run();
@@ -72,7 +72,7 @@ async function handleApi(request,env){
     if(!p)return json({error:"문서를 찾을 수 없습니다."},404);
     const status=b.status==="published"?"published":"draft",time=now();
     const coverUrl=b.coverUrl===undefined?p.cover_url:String(b.coverUrl||"")||null;
-    if(coverUrl){try{const u=new URL(coverUrl);if(!["https:","http:"].includes(u.protocol)||u.username||u.password||coverUrl.length>2048)throw Error()}catch{return json({error:"대표 이미지 URL이 올바르지 않습니다."},400)}}
+    if(coverUrl){try{const u=new URL(coverUrl);if(u.protocol!=="https:"||u.username||u.password||coverUrl.length>2048)throw Error()}catch{return json({error:"대표 이미지 URL은 https:// 주소만 사용할 수 있습니다."},400)}}
     await env.DB.prepare("UPDATE posts SET title=?,excerpt=?,body=?,category=?,cover_url=?,status=?,updated_at=?,published_at=? WHERE id=? AND user_id=?").bind(String(b.title||p.title),String(b.excerpt??p.excerpt),String(b.body??p.body),String(b.category||p.category),coverUrl,status,time,status==="published"?(p.published_at||time):null,pid,user.id).run();
     return json({ok:true});
   }
