@@ -95,9 +95,9 @@ async function handleApi(request,env){
     if(!row)return json({error:"먼저 Gemini API 키를 저장해 주세요."},400);
     try{
       const apiKey=await decryptSecret(row.value,env);
-      const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:"Reply with exactly: HS10 연결 성공"}]}]})});
+      const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":apiKey},body:JSON.stringify({contents:[{parts:[{text:"Reply with exactly: HS10 연결 성공"}]}]})});
       const data=await response.json();
-      if(!response.ok)return json({error:data.error?.message||"Gemini API 연결에 실패했습니다."},502);
+      if(!response.ok)return json({error:"Gemini API 오류 ("+response.status+"): "+(data.error?.message||"연결에 실패했습니다.")},502);
       return json({ok:true,message:data.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("")||"응답을 받았습니다."});
     }catch(e){console.error("Gemini test error",e);return json({error:"API 키 복호화 또는 연결에 실패했습니다. 암호화 키 설정을 확인해 주세요."},500)}
   }
@@ -111,9 +111,9 @@ async function handleApi(request,env){
     try{
       const apiKey=await decryptSecret(row.value,env);
       const instruction="당신은 한국어 전문 콘텐츠 에디터입니다. 자연스럽고 정확한 한국어로 작성하고, 과장이나 허위 사실을 만들지 마세요. 사용자가 요청한 결과물만 출력하세요.\n\n제목: "+title+"\n기존 본문:\n"+existing+"\n\n요청: "+prompt;
-      const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:instruction}]}]})});
+      const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent",{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":apiKey},body:JSON.stringify({contents:[{parts:[{text:instruction}]}]})});
       const data=await response.json();
-      if(!response.ok)return json({error:data.error?.message||"Gemini 글 생성에 실패했습니다."},502);
+      if(!response.ok)return json({error:"Gemini API 오류 ("+response.status+"): "+(data.error?.message||"글 생성에 실패했습니다.")},502);
       const text=data.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("").trim();
       if(!text)return json({error:"Gemini에서 생성된 본문이 없습니다."},502);
       return json({text});
