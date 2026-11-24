@@ -40,5 +40,28 @@ function editorView(post=null){
  $("#postForm").onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));const btn=e.target.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent="저장 중…";try{if(post)await api("/api/manage/posts/"+post.id,{method:"PUT",body:JSON.stringify(b)});else await api("/api/manage/posts",{method:"POST",body:JSON.stringify(b)});await loadPosts();manageView()}catch(err){$("#postMsg").textContent=err.message;btn.disabled=false;btn.textContent="저장하기"}};
 }
 $("#loginOpen").onclick=()=>currentUser?manageView():loginView();$("#startWriting").onclick=()=>currentUser?editorView():loginView();$("#studioOpen").onclick=()=>currentUser?manageView():loginView();$("#archiveLink").onclick=()=>currentUser?manageView():loginView();
-window.addEventListener("hashchange",async()=>{const m=location.hash.match(/^#post\/(.+)$/);if(m){try{const d=await api("/api/posts/"+m[1]);const p=d.post;openModal(`<p class="eyebrow">${escapeHtml(p.category)}</p><h2>${escapeHtml(p.title)}</h2><p class="hint">${escapeHtml(p.excerpt)}</p>${p.coverUrl?'<img src="'+escapeHtml(p.coverUrl)+'" alt="" style="width:100%;max-height:280px;object-fit:cover;margin:12px 0 22px">':''}<div style="white-space:pre-wrap;line-height:1.9;color:#e0e2d8">${escapeHtml(p.body)}</div>`)}catch(e){openModal("<h2>글을 찾을 수 없습니다.</h2>")}}});
+function renderArticleBody(source){
+ let out=escapeHtml(source||"");
+ out=out.replace(/^### (.+)$/gm,"<h3>$1</h3>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^# (.+)$/gm,"<h1>$1</h1>");
+ out=out.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/^---$/gm,"<hr>");
+ return out.split(/\n{2,}/).map(block=>{const t=block.trim();if(!t)return "";if(/^<(h[1-3]|hr)/.test(t))return t;return "<p>"+t.replace(/\n/g,"<br>")+"</p>"}).join("");
+}
+async function showArticle(){
+ const m=location.hash.match(/^#post\/(.+)$/);if(!m)return;
+ try{
+  const d=await api("/api/posts/"+m[1]),p=d.post;
+  const date=new Date(p.publishedAt||p.createdAt).toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric"});
+  openModal(\`<article class="webzine-article">
+   <div class="article-topline"><a href="#webzine" id="articleBack">HUB STUDIO 10 <span>/</span> WEBZINE</a><span>STORIES THAT STAY</span></div>
+   <header class="article-header"><p class="article-category">\${escapeHtml(p.category)}</p><h1>\${escapeHtml(p.title)}</h1><p class="article-deck">\${escapeHtml(p.excerpt||"")}</p><div class="article-byline"><span>HUB STUDIO 10 EDITION</span><time>\${date}</time></div></header>
+   \${p.coverUrl?\`<figure class="article-cover"><img src="\${escapeHtml(p.coverUrl)}" alt="\${escapeHtml(p.title)}"><figcaption>\${escapeHtml(p.title)}</figcaption></figure>\`:""}
+   <div class="article-layout"><aside class="article-aside"><span>READING</span><b>HUB<br>STUDIO<br>10</b><span>\${date}</span></aside><div class="article-body">\${renderArticleBody(p.body)}</div></div>
+   <footer class="article-footer"><span>END OF STORY</span><a href="#webzine">다른 이야기 읽기 ↗</a></footer>
+  </article>\`,true);
+  $("#modal .modal").classList.add("webzine-detail");
+  $("#articleBack").onclick=()=>{closeModal();location.hash="webzine"};
+ }catch(e){openModal("<h2>글을 찾을 수 없습니다.</h2>")}
+}
+window.addEventListener("hashchange",showArticle);
+if(location.hash.startsWith("#post/"))showArticle();
 (async()=>{try{await refreshUser()}catch{}await loadPosts()})();
