@@ -95,7 +95,7 @@ async function handleApi(request,env){
     if(!row)return json({error:"먼저 Gemini API 키를 저장해 주세요."},400);
     try{
       const apiKey=await decryptSecret(row.value,env);
-      const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:"Reply with exactly: HS10 연결 성공"}]}]})});
+      const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:"Reply with exactly: HS10 연결 성공"}]}]})});
       const data=await response.json();
       if(!response.ok)return json({error:data.error?.message||"Gemini API 연결에 실패했습니다."},502);
       return json({ok:true,message:data.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("")||"응답을 받았습니다."});
